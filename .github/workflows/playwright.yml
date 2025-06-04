@@ -1,43 +1,70 @@
-name: Run Playwright Tests (Python)
-
+name: "tests"
 on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'releases/*'
   workflow_dispatch:
+  schedule:
+    - cron: '40 0 * * *'
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  test-linux:
+    name: Playwright@${{ matrix.playwright}} ${{ matrix.os }} headless=${{ matrix.headless }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, macos-latest, windows-latest]
+        playwright: [1.8.0, 1.12.0, 1.18.0, next, beta]
+        headless: [true, false]
+        exclude:
+          - os: ubuntu-20.04
+            playwright: 1.0.0
+          - os: ubuntu-20.04
+            playwright: 1.1.0
+          - os: ubuntu-20.04
+            playwright: 1.2.0
+          - os: ubuntu-22.04
+            playwright: 1.23
+          - os: ubuntu-22.04
+            playwright: 1.25
+          - os: ubuntu-22.04
+            playwright: next
+          - os: ubuntu-20.04
+            playwright: latest
+          - os: macos-latest
+            playwright: 1.8.0
+          - os: macos-latest
+            playwright: 1.12.0
+          - os: macos-latest
+            playwright: 1.18.0
+        include:
+          - os: ubuntu-22.04
+            playwright: next
 
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 18
+    - uses: ./
+    - name: Install dependencies
+      run: cd sample && npm install playwright@${{ matrix.playwright }} && npx playwright install
+      # Headless running is the same across OSes
+    - name: Run Playwright (headless)
+      if: ${{ matrix.headless == true }}
+      run: cd sample && node index.js
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'  # Укажите нужную версию Python
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt  # Устанавливаем зависимости из requirements.txt
-          pip install playwright  # Устанавливаем Playwright для Python
-          playwright install  # Устанавливаем браузеры для Playwright
-
-      - name: Run Playwright tests
-        run: playwright test tests/  # Запускаем тесты Playwright в папке tests/
-
-      # Optional: Upload test results as artifacts
-      - name: Upload Test Report
-        if: always()
-        uses: actions/upload-artifact@v2
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-
-      - uses: actions/upload-artifact@v2
-        if: always()
-        with:
-          name: playwright-screenshots-traces
-          path: test-results
-          retention-days: 30
+      # Headful is different in every OS
+    - name: Run Playwright (headful linux)
+      if: ${{ matrix.headless == false && startsWith(matrix.os, 'ubuntu') }}
+      run: cd sample && HEADFUL=true xvfb-run --auto-servernum -- node index.js
+    - name: Run Playwright (headful windows)
+      if: ${{ matrix.headless == false && startsWith(matrix.os, 'windows') }}
+      run: cd sample && HEADFUL=true node index.js
+      shell: bash
+    - name: Run Playwright (headful mac)
+      if: ${{ matrix.headless == false && startsWith(matrix.os, 'mac') }}
+      run: cd sample && HEADFUL=true node index.js
