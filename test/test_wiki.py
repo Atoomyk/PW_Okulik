@@ -7,7 +7,8 @@ def test_wiki(page: Page):
 
 def test_wiki_2(page: Page):
     page.goto('https://www.wikipedia.org/')
-    page.get_by_role('link', name='Русский').click()
-    page.get_by_role('link', name='Содержание').click()
-    page.get_by_role('link', name='Обсуждений').click()
+    page.goto("https://www.wikipedia.org/")
+    page.get_by_role("link", name="Русский").click()
+    page.get_by_role("link", name="Содержание").click()
+    page.get_by_title("Обсуждение основной страницы").click()
     expect(page.get_by_text('Обсуждение Википедии:Содержание')).to_be_visible()
